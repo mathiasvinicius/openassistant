@@ -1,0 +1,23 @@
+{
+  "id": "toon",
+  "name": "TOON (JSON compressor)",
+  "description": "Converts JSON code blocks into a compact TOON (Token-Optimized Object Notation) before sending prompts to the LLM.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": { "type": "boolean", "default": true },
+      "includeStatistics": { "type": "boolean", "default": false },
+      "logConversions": {
+        "type": "boolean",
+        "default": false,
+        "description": "Log when a JSON block is converted to TOON (for debugging)."
+      },
+      "minJsonChars": {
+        "type": "number",
+        "description": "Only convert JSON blocks larger than this many characters (default: 300).",
+        "default": 300
+      }
+    }
+  }
+}

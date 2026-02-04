@@ -1,0 +1,60 @@
+# Repo hygiene
+.DS_Store
+.docker-config/
+
+# Local env/secrets
+.env
+.env.local
+*.pem
+*.key
+
+# Backups & local-only notes
+backups/
+*.tgz
+*.bak
+*.bak.*
+USER.md
+MEMORY.md
+MEMORY.local.md
+
+# OpenClaw data directory:
+# Ignore everything by default, then selectively allow the parts we want in git.
+data/**
+
+# Allow: UI proxy config/theme (no cert keys)
+!data/ui/
+!data/ui/nginx.conf
+!data/ui/theme.css
+
+# Allow: installed skills (source + scripts)
+!data/skills/
+!data/skills/**
+
+# Allow: workspace extensions we wrote (e.g. TOON plugin)
+!data/workspace/
+!data/workspace/.openclaw/
+!data/workspace/.openclaw/extensions/
+!data/workspace/.openclaw/extensions/**
+
+# Still ignore private/runtime state (even if it slips into allowed areas)
+data/ui/certs/
+data/openclaw.json
+data/openclaw.json.*
+data/agents/
+data/credentials/
+data/identity/
+data/wacli/
+data/media/
+data/workspace/media/
+data/workspace/data/
+data/workspace/.git/
+
+# Large caches / environments
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/node_modules/
+**/dist/
+
+# Optional private overlay (you can export/import, but don't commit)
+private-overlay/
