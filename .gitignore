@@ -61,3 +61,6 @@ data/skills/wacli-monitor/config/wacli-config.yaml
 
 # Optional private overlay (you can export/import, but don't commit)
 private-overlay/
+
+# Local-only WA-JS config
+data/skills/wppconnect-wajs/config/wppconnect.env

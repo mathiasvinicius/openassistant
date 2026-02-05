@@ -58,3 +58,16 @@ services:
       - /root/.opencode:/home/node/.opencode:ro
       - /root/.opencode/bin/opencode:/usr/local/bin/opencode:ro
       - /var/run/docker.sock:/var/run/docker.sock
+
+  wppconnect-wajs:
+    image: ${WPP_IMAGE:-mathiasvinicius/wppconnect:latest}
+    container_name: wppconnect-wajs
+    restart: unless-stopped
+    ports:
+      - "${WPP_PORT:-21465}:21465"
+    environment:
+      - TZ=${TZ:-America/Sao_Paulo}
+    volumes:
+      - ./data/workspace/wppconnect-wajs:/app/data
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
