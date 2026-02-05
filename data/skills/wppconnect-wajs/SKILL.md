@@ -21,14 +21,20 @@ cp config/wppconnect.env.example config/wppconnect.env
 ./scripts/start.sh
 ```
 
-3) Check status/logs:
+3) Login and show QR code (creates session + fetches QR):
+
+```bash
+./scripts/login.sh LOCKNE
+```
+
+4) Check status/logs:
 
 ```bash
 ./scripts/status.sh
 ./scripts/logs.sh
 ```
 
-4) Stop the gateway:
+5) Stop the gateway:
 
 ```bash
 ./scripts/stop.sh
