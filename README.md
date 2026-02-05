@@ -177,6 +177,61 @@ Local notes / checklist (persisted in the workspace):
 
 - `./data/workspace/MEMORY.md`
 
+### wacli-monitor (WhatsApp summaries)
+
+This repo includes a custom `wacli-monitor` daemon that:
+
+- syncs WhatsApp via `wacli` into `./data/wacli/wacli.db`
+- batches messages per-chat (groups wait longer)
+- downloads media on-demand (`wacli media download`) so the LLM can describe images
+- asks the OpenClaw agent to produce a **short summary** (no message replication)
+- delivers the summary to you via the OpenClaw WhatsApp bot (and can send audio for long group blocks using Azure TTS)
+
+Config:
+
+- `./data/skills/wacli-monitor/config/wacli-config.yaml`
+- Template (safe to commit):
+  - `./data/skills/wacli-monitor/config/wacli-config.example.yaml` (copy to `wacli-config.yaml`)
+
+Key settings (most edited):
+
+```yaml
+monitor:
+  conversation_batching:
+    default_wait: "2m"     # DMs
+    group_wait: "30m"      # groups
+
+notifications:
+  whatsapp:
+    download_media: true
+    media_max_mb: 15
+  delivery:
+    mode: "openclaw"
+    openclaw_target: "+55..." # your number
+    audio:
+      enabled: true
+      only_groups: true
+      min_messages: 8
+      min_chars: 450
+```
+
+Logs (inside the container):
+
+```bash
+docker compose exec -T openclaw-gateway tail -f /home/node/.openclaw/workspace/logs/wacli/daemon.log
+```
+
+Restart the daemon (inside the container):
+
+```bash
+docker compose exec -T openclaw-gateway sh -lc 'kill $(cat /home/node/.openclaw/workspace/logs/wacli/.daemon.pid) 2>/dev/null || true'
+```
+
+Notes:
+
+- If you see `Resumo indisponível...`, it usually means the LLM call failed (rate limit / auth / provider error). The daemon still sends a minimal non-empty notification.
+- Image-only messages can arrive with `text=NULL`; the monitor now tags them like `[image]` and downloads the file so the LLM can describe it.
+
 ### Google Calendar skill (OAuth)
 
 Authenticate once (opens a local callback server and prints a Google login URL):
@@ -216,6 +271,8 @@ Pick/test voices in a loop (generates sample audio and optionally saves as defau
 ```bash
 docker compose exec -it openclaw-gateway /home/node/.openclaw/skills/azure-tts/scripts/set_voice.sh
 ```
+
+Note: `wacli-monitor` can use this skill to send long group summaries as WhatsApp voice notes.
 
 ### Whisper Transcribe skill (local)
 

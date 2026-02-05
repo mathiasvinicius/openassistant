@@ -49,6 +49,9 @@ data/workspace/media/
 data/workspace/data/
 data/workspace/.git/
 
+# Local-only skill configs (contain phone numbers / tokens)
+data/skills/wacli-monitor/config/wacli-config.yaml
+
 # Large caches / environments
 **/.venv/
 **/__pycache__/

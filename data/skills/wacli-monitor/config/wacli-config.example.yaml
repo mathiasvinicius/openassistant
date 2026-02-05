@@ -1,0 +1,70 @@
+# WhatsApp Monitor Configuration (template)
+#
+# Copy to `wacli-config.yaml` (local-only) and adjust as needed.
+# NOTE: `wacli-config.yaml` is gitignored because it usually contains phone numbers.
+
+monitor:
+  sync:
+    enabled: true
+    mode: "follow"
+    idle_timeout: "5m"
+
+  processing:
+    batch_interval: "10s"
+    retention_hours: 24
+    max_messages_per_batch: 50
+    bootstrap_catchup: "30m"
+    max_processed_ids: 5000
+    include_from_me_in_groups: true
+    include_from_me_in_direct: false
+    include_from_me_direct_allowlist: []
+
+  conversation_batching:
+    enabled: true
+    default_wait: "2m"   # DMs
+    group_wait: "30m"    # groups
+    short_message_threshold: 50
+    vip_list: []
+
+blacklist:
+  groups:
+    - "Status Updates"
+  jids: []
+  contacts: []
+
+notifications:
+  delivery:
+    mode: "openclaw"              # openclaw | wacli
+    openclaw_channel: "whatsapp"
+    openclaw_target: "+55XXXXXXXXXXX"
+    audio:
+      enabled: true
+      only_groups: true
+      min_messages: 8
+      min_chars: 450
+
+  whatsapp:
+    enabled: true
+    format: "smart"
+    max_chars: 900
+    download_media: true
+    media_max_mb: 15
+
+  logs:
+    enabled: true
+    path: "logs/wacli"
+
+fields:
+  capture:
+    - "msg_id"
+    - "timestamp"
+    - "chat_name"
+    - "sender_name"
+    - "text"
+    - "media_type"
+
+  skip:
+    - "media_key"
+    - "file_sha256"
+    - "direct_path"
+
