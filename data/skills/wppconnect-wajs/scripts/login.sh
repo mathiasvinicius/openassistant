@@ -17,6 +17,11 @@ SESSION="${1:-NERDWHATS_AMERICA}"
 SECRETKEY="${WPP_SECRETKEY:-}"
 BASE_URL="${WPP_BASE_URL:-http://127.0.0.1:${WPP_PORT:-21465}}"
 
+# Scale for ASCII QR (bigger number => smaller QR)
+# Default reduced by ~50% from previous size
+QR_SCALE_W="${WPP_QR_SCALE_W:-8}"
+QR_SCALE_H="${WPP_QR_SCALE_H:-14}"
+
 start_url="$BASE_URL/api/$SESSION/start-session"
 qr_url="$BASE_URL/api/$SESSION/qrcode-session"
 
@@ -65,20 +70,22 @@ PY
 }
 
 render_ascii_qr() {
-  python3 - <<'PY' "$1"
+  python3 - <<'PY' "$1" "$2" "$3"
 from PIL import Image
 import sys
 path=sys.argv[1]
+scale_w=int(sys.argv[2])
+scale_h=int(sys.argv[3])
 try:
     img=Image.open(path)
 except Exception as e:
     print(f"Failed to open image: {e}")
     raise SystemExit(1)
 img=img.convert('1')
-# Resize to fit terminal width
+# Resize to fit terminal
 w,h=img.size
-new_w=max(1, w//2)
-new_h=max(1, h//4)
+new_w=max(1, w//scale_w)
+new_h=max(1, h//scale_h)
 img=img.resize((new_w,new_h))
 px=img.load()
 for y in range(img.size[1]):
@@ -136,7 +143,7 @@ OUT="/tmp/wppconnect-${SESSION}.png"
 
 if [[ -n "$QR_DATA" ]]; then
   if extract_qr_to_file "$QR_DATA" "$OUT" >/dev/null 2>&1; then
-    render_ascii_qr "$OUT"
+    render_ascii_qr "$OUT" "$QR_SCALE_W" "$QR_SCALE_H"
     exit 0
   else
     echo "$QR_DATA"
@@ -179,7 +186,7 @@ PY
 
 if [[ -n "$QR_DATA" ]]; then
   if extract_qr_to_file "$QR_DATA" "$OUT" >/dev/null 2>&1; then
-    render_ascii_qr "$OUT"
+    render_ascii_qr "$OUT" "$QR_SCALE_W" "$QR_SCALE_H"
     exit 0
   fi
   echo "$QR_DATA"
@@ -189,7 +196,7 @@ fi
 # As fallback, attempt binary response to file
 HTTP_CODE=$(curl -s -o "$OUT" -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$qr_url")
 if [[ "$HTTP_CODE" == "200" ]]; then
-  render_ascii_qr "$OUT"
+  render_ascii_qr "$OUT" "$QR_SCALE_W" "$QR_SCALE_H"
   exit 0
 fi
 
