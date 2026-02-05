@@ -232,6 +232,45 @@ Notes:
 - If you see `Resumo indisponível...`, it usually means the LLM call failed (rate limit / auth / provider error). The daemon still sends a minimal non-empty notification.
 - Image-only messages can arrive with `text=NULL`; the monitor now tags them like `[image]` and downloads the file so the LLM can describe it.
 
+Notification flow (diagram):
+
+```text
+WhatsApp (mobile / linked device)
+  |
+  | 1) wacli sync --once --json  (runs periodically; updates wacli.db)
+  v
+wacli store (SQLite): ~/.openclaw/wacli/wacli.db
+  |
+  | 2) wacli-monitor daemon
+  |    - reads new rows
+  |    - blacklist/filter
+  |    - per-chat batching (DM: default_wait, group: group_wait)
+  v
+Ready conversation block (per chat_jid)
+  |
+  | 3) Media handling (optional)
+  |    - if media_type and no/empty text -> placeholder [image]/[video]/...
+  |    - wacli media download --chat <jid> --id <msg_id> --json
+  |    - attach MEDIA_PATH=<local file> into the LLM prompt (never echoed back)
+  v
+LLM summary (OpenClaw agent)
+  |
+  | 4) openclaw agent --json
+  |    - returns short bullets (no message replication)
+  |    - if fails -> fallback "Resumo indisponivel..."
+  v
+Delivery decision
+  |
+  | 5a) Text summary
+  |     openclaw message send --channel whatsapp --target <your number>
+  |
+  | 5b) Audio summary (if enabled + big block + (only_groups))
+  |     azure-tts speak.sh -> OGG/Opus
+  |     openclaw message send --media <ogg> --message "(audio) Resumo: <chat>"
+  v
+You (owner/admin WhatsApp)
+```
+
 ### Google Calendar skill (OAuth)
 
 Authenticate once (opens a local callback server and prints a Google login URL):
