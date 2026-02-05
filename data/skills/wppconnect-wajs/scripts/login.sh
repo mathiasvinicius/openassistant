@@ -48,7 +48,7 @@ PY
 
 extract_qr_to_file() {
   python3 - <<'PY' "$1" "$2"
-import base64,sys,os
+import base64,sys
 raw=sys.argv[1]
 out=sys.argv[2]
 # Accept data URI or raw base64
@@ -61,6 +61,31 @@ except Exception:
 with open(out,'wb') as f:
     f.write(data)
 print(out)
+PY
+}
+
+render_ascii_qr() {
+  python3 - <<'PY' "$1"
+from PIL import Image
+import sys
+path=sys.argv[1]
+try:
+    img=Image.open(path)
+except Exception as e:
+    print(f"Failed to open image: {e}")
+    raise SystemExit(1)
+img=img.convert('1')
+# Resize to fit terminal width
+w,h=img.size
+new_w=max(1, w//2)
+new_h=max(1, h//4)
+img=img.resize((new_w,new_h))
+px=img.load()
+for y in range(img.size[1]):
+    line=[]
+    for x in range(img.size[0]):
+        line.append('██' if px[x,y]==0 else '  ')
+    print(''.join(line))
 PY
 }
 
@@ -107,10 +132,11 @@ print("")
 PY
 )
 
+OUT="/tmp/wppconnect-${SESSION}.png"
+
 if [[ -n "$QR_DATA" ]]; then
-  OUT="/tmp/wppconnect-${SESSION}.png"
   if extract_qr_to_file "$QR_DATA" "$OUT" >/dev/null 2>&1; then
-    echo "QR saved to: $OUT"
+    render_ascii_qr "$OUT"
     exit 0
   else
     echo "$QR_DATA"
@@ -121,7 +147,6 @@ fi
 sleep 1
 
 echo "Fetching QR code..."
-# First try JSON endpoint
 QR_JSON=$(curl -s -X GET "$qr_url" "${AUTH_HEADER[@]}")
 
 if [[ -z "$QR_JSON" ]]; then
@@ -129,7 +154,6 @@ if [[ -z "$QR_JSON" ]]; then
   exit 1
 fi
 
-# If JSON includes base64, decode to file
 QR_DATA=$(python3 - <<'PY' "$QR_JSON"
 import json,sys
 raw=sys.argv[1]
@@ -154,9 +178,8 @@ PY
 )
 
 if [[ -n "$QR_DATA" ]]; then
-  OUT="/tmp/wppconnect-${SESSION}.png"
   if extract_qr_to_file "$QR_DATA" "$OUT" >/dev/null 2>&1; then
-    echo "QR saved to: $OUT"
+    render_ascii_qr "$OUT"
     exit 0
   fi
   echo "$QR_DATA"
@@ -164,10 +187,9 @@ if [[ -n "$QR_DATA" ]]; then
 fi
 
 # As fallback, attempt binary response to file
-OUT="/tmp/wppconnect-${SESSION}.png"
 HTTP_CODE=$(curl -s -o "$OUT" -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "$qr_url")
 if [[ "$HTTP_CODE" == "200" ]]; then
-  echo "QR saved to: $OUT"
+  render_ascii_qr "$OUT"
   exit 0
 fi
 
