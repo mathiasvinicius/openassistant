@@ -245,7 +245,9 @@ def is_blacklisted(chat_name, sender_name, chat_jid=""):
             return True
     for c in bl.get("contacts", []) or []:
         c = norm(c)
-        if c and c in sn:
+        # Apply contact blacklist to both sender_name and chat_name.
+        # Some DMs may show sender_name as "(me)" while chat_name is the real contact/bot name.
+        if c and (c in sn or c in cn):
             return True
     return False
 
