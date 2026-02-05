@@ -63,6 +63,7 @@ services:
     image: ${WPP_IMAGE:-mathiasvinicius/wppconnect:latest}
     container_name: wppconnect-wajs
     restart: unless-stopped
+    profiles: ["wppconnect"]
     ports:
       - "${WPP_PORT:-21465}:21465"
     environment:

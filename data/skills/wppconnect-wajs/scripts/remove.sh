@@ -12,4 +12,7 @@ fi
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
-docker compose --env-file "$ENV_FILE" --profile wppconnect logs -f wppconnect-wajs
+# Stop and remove the container, keep data directory intact.
+docker compose --env-file "$ENV_FILE" --profile wppconnect rm -sf wppconnect-wajs
+
+echo "Removed container: wppconnect-wajs (data preserved)"

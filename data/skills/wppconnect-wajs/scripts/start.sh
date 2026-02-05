@@ -13,7 +13,7 @@ fi
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
-# Load env into compose and start the service in this compose file.
-docker compose --env-file "$ENV_FILE" up -d wppconnect-wajs
+# Load env into compose and start the service under the wppconnect profile.
+docker compose --env-file "$ENV_FILE" --profile wppconnect up -d wppconnect-wajs
 
 echo "Started: wppconnect-wajs (port ${WPP_PORT:-21465})"

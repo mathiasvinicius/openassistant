@@ -12,7 +12,7 @@ fi
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
-if docker compose ps --services --status running | grep -qx "wppconnect-wajs"; then
+if docker compose --profile wppconnect ps --services --status running | grep -qx "wppconnect-wajs"; then
   echo "running"
 else
   echo "stopped"

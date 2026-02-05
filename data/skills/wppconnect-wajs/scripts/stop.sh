@@ -12,6 +12,6 @@ fi
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 
-docker compose --env-file "$ENV_FILE" stop wppconnect-wajs
+docker compose --env-file "$ENV_FILE" --profile wppconnect stop wppconnect-wajs
 
 echo "Stopped: wppconnect-wajs"

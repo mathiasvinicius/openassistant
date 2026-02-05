@@ -15,7 +15,7 @@ This skill runs a WPPConnect WA-JS gateway in Docker Compose and provides helper
 cp config/wppconnect.env.example config/wppconnect.env
 ```
 
-2) Start the gateway:
+2) Start the gateway (profiled service):
 
 ```bash
 ./scripts/start.sh
@@ -32,6 +32,26 @@ cp config/wppconnect.env.example config/wppconnect.env
 
 ```bash
 ./scripts/stop.sh
+```
+
+## Reversible / rollback
+
+- Stop only:
+
+```bash
+./scripts/stop.sh
+```
+
+- Remove the container (keeps data):
+
+```bash
+./scripts/remove.sh
+```
+
+- Disable by default (service uses the `wppconnect` compose profile):
+
+```bash
+docker compose --profile wppconnect up -d wppconnect-wajs
 ```
 
 ## Notes
