@@ -231,6 +231,7 @@ Notes:
 
 - If you see `Resumo indisponível...`, it usually means the LLM call failed (rate limit / auth / provider error). The daemon still sends a minimal non-empty notification.
 - Image-only messages can arrive with `text=NULL`; the monitor now tags them like `[image]` and downloads the file so the LLM can describe it.
+- If you see `Imagem recebida; analise pendente`, it usually means the vision model hit a rate limit. The daemon will retry automatically and send a follow-up update when it succeeds.
 
 Notification flow (diagram):
 

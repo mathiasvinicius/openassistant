@@ -38,6 +38,11 @@ RUNNING = True
 # - Groups: chat_jid (one aggregated timeline per group)
 CONVERSATIONS = defaultdict(lambda: {"messages": [], "last_msg_time": 0})
 
+PENDING_IMAGE_RE = re.compile(
+    r"^\\s*imagem\\s+recebida\\s*;\\s*an[aá]lise\\s+pendente\\.?\\s*$",
+    re.IGNORECASE,
+)
+
 def parse_duration_seconds(value, default_seconds):
     """
     Parse durations like: "10s", "2m", "1h".
@@ -250,6 +255,169 @@ def is_blacklisted(chat_name, sender_name, chat_jid=""):
         if c and (c in sn or c in cn):
             return True
     return False
+
+def _postprocess_summary_text(summary_text: str) -> str:
+    """
+    Clean model output before delivery:
+    - collapse repeated "Imagem recebida; analise pendente." lines
+    - strip local paths
+    """
+    if not summary_text:
+        return summary_text
+
+    lines = [ln.rstrip() for ln in summary_text.splitlines()]
+
+    pending_count = sum(1 for ln in lines if PENDING_IMAGE_RE.match(ln))
+    if pending_count > 1:
+        compacted = []
+        inserted = False
+        for ln in lines:
+            if PENDING_IMAGE_RE.match(ln):
+                if not inserted:
+                    compacted.append(f"Imagens recebidas ({pending_count}); analise pendente.")
+                    inserted = True
+                continue
+            compacted.append(ln)
+        lines = compacted
+
+    out = "\n".join(lines).strip()
+    out = re.sub(r"/home/node/\\S+", "[local-media]", out)
+    return out
+
+def _schedule_pending_media(chat_jid: str, chat_name: str, media_paths):
+    """
+    If image analysis is pending due to rate limits, keep a small retry queue in STATE_FILE.
+    The retry will attempt to describe the media again and send a short update.
+    """
+    try:
+        paths = [str(p).strip() for p in (media_paths or []) if str(p).strip()]
+        seen = set()
+        uniq = []
+        for p in paths:
+            if p in seen:
+                continue
+            seen.add(p)
+            uniq.append(p)
+        if not uniq:
+            return
+
+        state = get_state()
+        pending = state.get("pending_media") or []
+        pending = [x for x in pending if (x or {}).get("chat_jid") != chat_jid]
+        pending.append(
+            {
+                "chat_jid": chat_jid,
+                "chat_name": chat_name,
+                "paths": uniq[:5],
+                "attempts": 0,
+                "next_try_ts": int(time.time()) + 10 * 60,
+            }
+        )
+        state["pending_media"] = pending
+        save_state(state)
+        log("INFO", f"Midia pendente agendada para retry: {chat_name} ({len(uniq)} arquivos)")
+    except Exception as e:
+        log("WARNING", f"Falha ao agendar retry de midia: {e}")
+
+def process_pending_media_retries():
+    """
+    Retry pending media analysis when the model previously rate-limited.
+    Sends a short update if successful, and clears the queue entry.
+    """
+    state = get_state()
+    pending = state.get("pending_media") or []
+    if not pending:
+        return
+
+    now = int(time.time())
+    kept = []
+
+    for item in pending:
+        try:
+            chat_jid = str((item or {}).get("chat_jid") or "")
+            chat_name = str((item or {}).get("chat_name") or chat_jid)
+            paths = (item or {}).get("paths") or []
+            attempts = int((item or {}).get("attempts") or 0)
+            next_try_ts = int((item or {}).get("next_try_ts") or 0)
+
+            if not chat_jid or not paths:
+                continue
+            if attempts >= 3:
+                log("WARNING", f"Desistindo de retry de midia apos 3 tentativas: {chat_name}")
+                continue
+            if now < next_try_ts:
+                kept.append(item)
+                continue
+
+            prompt = (
+                "Voce e um assistente. Preciso de uma atualizacao curta sobre as imagens recebidas.\n"
+                "Tarefa: descrever o conteudo das imagens/arquivos abaixo em 3-5 bullets.\n"
+                "- NUNCA inclua caminhos locais (MEDIA_PATH) nem ids tecnicos na resposta.\n"
+                "- Se nao conseguir analisar agora, responda apenas: \"Imagem recebida; analise pendente\".\n"
+                "- Nao faca perguntas.\n"
+                f"\nCHAT: {chat_name}\nJID: {chat_jid}\nARQUIVOS:\n"
+                + "\n".join([f"- MEDIA_PATH={p}" for p in paths])
+            )
+
+            session_id = f"wacli-monitor:retry:{re.sub(r'[^a-zA-Z0-9:_-]+', '_', chat_jid)[:110]}"
+            res = subprocess.run(
+                ["openclaw", "agent", "--json", "--session-id", session_id, "--message", prompt],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+            raw = (res.stdout or "").strip()
+            try:
+                payload = json.loads(raw)
+            except Exception:
+                start = raw.find("{")
+                end = raw.rfind("}")
+                payload = json.loads(raw[start : end + 1]) if (start >= 0 and end > start) else {}
+            pls = (((payload or {}).get("result") or {}).get("payloads") or [])
+            text = (pls[0].get("text") or "").strip() if pls else ""
+
+            text = _postprocess_summary_text(text)
+            if not text or PENDING_IMAGE_RE.match(text.strip()):
+                attempts += 1
+                backoff = (10 * 60) * attempts
+                item["attempts"] = attempts
+                item["next_try_ts"] = now + backoff
+                kept.append(item)
+                log("INFO", f"Retry de midia ainda pendente: {chat_name} (tentativa {attempts}/3)")
+                continue
+
+            mode = (CONFIG.get("notifications", {}).get("delivery", {}).get("mode") or "openclaw").strip().lower()
+            if mode != "openclaw":
+                log("WARNING", "Retry de midia ignorado: notifications.delivery.mode != openclaw")
+                continue
+
+            channel = CONFIG.get("notifications", {}).get("delivery", {}).get("openclaw_channel", "whatsapp")
+            target = CONFIG.get("notifications", {}).get("delivery", {}).get("openclaw_target")
+            if not target:
+                raise RuntimeError("notifications.delivery.openclaw_target não configurado")
+
+            msg = f"*📷 Atualizacao de imagem — {chat_name}*\n\n{text}".strip()
+            subprocess.run(
+                ["openclaw", "message", "send", "--channel", str(channel), "--target", str(target), "--message", msg],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+            log("INFO", f"Atualizacao de midia entregue: {chat_name}")
+        except Exception as e:
+            try:
+                attempts = int((item or {}).get("attempts") or 0) + 1
+                item["attempts"] = attempts
+                item["next_try_ts"] = now + (10 * 60) * attempts
+                kept.append(item)
+            except Exception:
+                pass
+            log("WARNING", f"Falha no retry de midia: {e}")
+
+    state["pending_media"] = kept
+    save_state(state)
 
 def fetch_new_messages(retry_count=0, max_retries=3):
     """Sincroniza com retry logic"""
@@ -668,8 +836,18 @@ def notify_conversation(conv_key):
             cleaned.append(ln)
         summary_text = "\n".join(cleaned).strip()
 
-    # Never leak local paths in WhatsApp messages.
-    summary_text = re.sub(r"/home/node/\S+", "[local-media]", summary_text)
+    # Clean summary output (collapse repeated pending-image lines, redact local paths).
+    summary_text = _postprocess_summary_text(summary_text)
+
+    # If the model couldn't analyze media (rate limit), schedule a retry update.
+    if "analise pendente" in summary_text.lower():
+        media_paths = []
+        for m in messages:
+            p = (m.get("local_path") or "").strip()
+            if p:
+                media_paths.append(p)
+        if media_paths:
+            _schedule_pending_media(chat_jid, chat_name, media_paths)
 
     # Deliver the summary (preferred: OpenClaw -> WhatsApp -> you).
     mode = (CONFIG.get("notifications", {}).get("delivery", {}).get("mode") or "openclaw").strip().lower()
@@ -830,6 +1008,9 @@ def main():
                 ready = check_ready_conversations()
                 for conv_key in ready:
                     notify_conversation(conv_key)
+
+                # Retry pending media analysis (e.g. image model rate limit).
+                process_pending_media_retries()
                 
                 time.sleep(5)
                 
