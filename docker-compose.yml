@@ -67,6 +67,7 @@ services:
     network_mode: host
     environment:
       - TZ=${TZ:-America/Sao_Paulo}
+      - SECRET_KEY=${WPP_SECRETKEY:-THISISMYSECURETOKEN}
     volumes:
       - ./data/workspace/wppconnect-wajs:/app/data
       - /etc/localtime:/etc/localtime:ro
